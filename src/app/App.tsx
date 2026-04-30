@@ -1007,7 +1007,7 @@ export default function App() {
       // R to reset
       if (e.key === 'r' || e.key === 'R') handleResetRef.current();
       // H or ? for help
-      if (e.key === 'h' || e.key === 'H' || e.key === '?') setShowHelp(prev => !prev);
+      if (e.key === 'h' || e.key === 'H' || e.key === '?') setShowHelp((prev: boolean) => !prev);
       // Arrow keys to orbit
       if (r.isOrbit) {
         if (e.key === 'ArrowLeft') r.orbit.theta -= 0.1;

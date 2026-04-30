@@ -1,7 +1,7 @@
 
   # Create design prototype
 
-  This is a code bundle for Create design prototype. The original project is available at https://www.figma.com/design/F0b6vs3AJKInAFM0qo0tfM/Create-design-prototype.
+  This is a code bundle for Create design prototype. The original project is available at https://fly-chisel-94569588.figma.site
 
   ## Running the code
 

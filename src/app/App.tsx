@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
+import { Analytics } from "@vercel/analytics/react";
 
 // ─── Zone Data ─────────────────────────────────────────────────────────────────
 const ZONES = [
@@ -2135,6 +2136,7 @@ export default function App() {
         </div>
       )}
 
+      <Analytics />
     </div>
   );
 }

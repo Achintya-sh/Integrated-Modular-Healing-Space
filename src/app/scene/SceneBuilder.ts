@@ -209,11 +209,7 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
   // Divider cap
   const divCap = new THREE.Mesh(box(0.22, 0.06, 9.5), std(0xB89860, 0.5, 0.15));
   divCap.position.set(0, 1.08, 0.5); scene.add(divCap);
-  // Planter on divider
-  const dp = new THREE.Mesh(cyl(0.22, 0.18, 0.28, 10), std(0x8A5A38, 0.85));
-  dp.position.set(0, 1.22, 1.2); scene.add(dp);
-  const dpl = new THREE.Mesh(sph(0.3, 9, 7), std(0x3A7848, 0.8));
-  dpl.position.set(0, 1.62, 1.2); scene.add(dpl);
+
 
   // Reception desk
   const deskMat = std(0xA08060, 0.72, 0.05);
@@ -435,7 +431,7 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
 
   // ── High-Quality Architectural Bookshelf ──
   const shGroup = new THREE.Group();
-  shGroup.position.set(-3.8, 0, -6.32);
+  shGroup.position.set(-5.0, 0, -6.32);
   const shMat = std(0x5A3820, 0.6, 0.1); // Rich dark walnut/oak
   const shBackMat = std(0x4A2C18, 0.8, 0.1); // Darker backboard
   
@@ -545,7 +541,7 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
              startX += 0.03; // gap for lean
           }
           
-          g.position.set(-3.8 + startX, sy, -6.22 + (Math.random() * 0.02 - 0.01));
+          g.position.set(-5.0 + startX, sy, -6.22 + (Math.random() * 0.02 - 0.01));
           g.rotation.z = -lean; // Negative to lean right
           
           scene.add(g);

@@ -511,12 +511,35 @@ function buildScene(scene: THREE.Scene, animRefs: any) {
     const plank = new THREE.Mesh(box(3.12, 0.05, 0.3), std(0x8A5830, 0.65));
     plank.position.set(-3.8, sy, -6.18); scene.add(plank);
   });
-  // Books
+  // Books — realistic with cover + page edges
   const bookColors = [0xC05050, 0x5070C0, 0x50A060, 0xC0A030, 0x805090, 0xC07040, 0x405080, 0xC04888, 0x408A70];
+  const bookHeights = [0.42, 0.50, 0.44, 0.52, 0.38, 0.48, 0.46, 0.40, 0.50];
+  const bookWidths  = [0.08, 0.10, 0.07, 0.12, 0.06, 0.09, 0.11, 0.08, 0.10];
   bookColors.forEach((c, i) => {
-    const book = new THREE.Mesh(box(0.08 + (i % 3) * 0.02, 0.46 + (i % 2) * 0.1, 0.22), std(c, 0.9));
-    book.position.set(-4.8 + i * 0.36, 1.12, -6.16); book.rotation.y = (i % 3 - 1) * 0.06;
-    book.castShadow = true; scene.add(book); clickables.push({ mesh: book, zoneId: "calm" });
+    const bw = bookWidths[i], bh = bookHeights[i], bd = 0.20;
+    const g = new THREE.Group();
+    // Cover (colored, slightly larger)
+    const cover = new THREE.Mesh(box(bw, bh, bd), std(c, 0.88));
+    cover.castShadow = true; g.add(cover);
+    // Spine (darker strip on the front edge)
+    const spine = new THREE.Mesh(box(bw + 0.004, bh - 0.01, 0.015), std(c, 0.75, 0.05));
+    spine.position.z = bd / 2 + 0.007; g.add(spine);
+    // Page block (cream/white inset, slightly smaller)
+    const pages = new THREE.Mesh(box(bw - 0.014, bh - 0.02, bd - 0.025),
+      std(0xF5F0E0, 0.95));
+    pages.position.x = 0.004; g.add(pages);
+    // Page lines (thin grooves on top edge for realism)
+    const pageTop = new THREE.Mesh(box(bw - 0.016, 0.003, bd - 0.03),
+      std(0xE8E0D0, 0.9));
+    pageTop.position.y = bh / 2 - 0.008; g.add(pageTop);
+    // Position on shelf
+    const tilt = (i % 4 === 2) ? 0.12 : (i % 3 - 1) * 0.04;
+    const lean = (i === 3 || i === 7) ? 0.08 : 0; // some books lean slightly
+    g.position.set(-4.85 + i * 0.34, 1.12, -6.16);
+    g.rotation.y = tilt;
+    g.rotation.z = lean;
+    scene.add(g);
+    g.children.forEach((m: any) => { if (m.isMesh) clickables.push({ mesh: m, zoneId: "calm" }); });
   });
 
   // Meditation cushions
@@ -596,7 +619,8 @@ export default function App() {
   const [comparisonMode, setComparisonMode] = useState(false);
   const [heatmapMode, setHeatmapMode] = useState(false);
   const [circadianTime, setCircadianTime] = useState(12);
-  const [firstPersonMode, setFirstPersonMode] = useState(false);
+  const [guidedTour, setGuidedTour] = useState(false);
+  const [tourZoneIndex, setTourZoneIndex] = useState(-1);
   const [splitScreen, setSplitScreen] = useState(false);
   const [inspectorMode, setInspectorMode] = useState(false);
   const [inspectedItem, setInspectedItem] = useState<any>(null);
@@ -604,6 +628,8 @@ export default function App() {
   const [showTools, setShowTools] = useState(false);
   const [occupancy, setOccupancy] = useState<Record<string, number>>({});
   const [showWelcome, setShowWelcome] = useState(true);
+  const [welcomePhase, setWelcomePhase] = useState<"intro" | "askNew" | "done">("intro");
+  const [tutorialStep, setTutorialStep] = useState(-1); // -1 = not active
   const [idlePrompt, setIdlePrompt] = useState(false);
   const idleTimerRef = useRef<any>(null);
   const hoveredMeshRef = useRef<THREE.Mesh | null>(null);
@@ -671,22 +697,40 @@ export default function App() {
     if (!patientSimActive) setOccupancy({});
   }, [patientSimActive]);
 
-  // First-person mode
+  // Guided tour waypoints: entrance → each zone → overview
+  const TOUR_WAYPOINTS = [
+    { pos: [0, 1.7, 5.8], lookAt: [0, 1.2, 0], dur: 2.5, zoneIdx: -1 },       // Entrance overview
+    { pos: [-1.2, 2.0, 5.5], lookAt: [-3.8, 1.1, 2.8], dur: 2.5, zoneIdx: 0 },  // Approach Seating
+    { pos: [-1.8, 1.7, 3.8], lookAt: [-3.8, 1.0, 2.8], dur: 4.0, zoneIdx: 0 },  // Dwell at Seating
+    { pos: [1.0, 1.8, 4.2], lookAt: [3.8, 1.4, 2.8], dur: 2.5, zoneIdx: 1 },    // Approach Biophilic
+    { pos: [2.0, 1.7, 3.4], lookAt: [4.5, 1.2, 3.0], dur: 4.0, zoneIdx: 1 },    // Dwell at Biophilic
+    { pos: [1.0, 1.8, -0.5], lookAt: [3.8, 1.4, -2.8], dur: 2.5, zoneIdx: 2 },  // Approach Digital
+    { pos: [2.0, 1.7, -2.2], lookAt: [3.8, 1.5, -3.2], dur: 4.0, zoneIdx: 2 },  // Dwell at Digital
+    { pos: [-1.0, 1.8, -1.0], lookAt: [-3.8, 1.1, -2.8], dur: 2.5, zoneIdx: 3 },// Approach Calm
+    { pos: [-2.0, 1.7, -2.5], lookAt: [-3.8, 1.0, -2.8], dur: 4.0, zoneIdx: 3 },// Dwell at Calm
+    { pos: [0, 4.5, 8.0], lookAt: [0, 1.0, 0], dur: 3.0, zoneIdx: -1 },          // Rise to overview
+  ];
+
+  // Guided tour mode
   useEffect(() => {
-    R.current.firstPersonMode = firstPersonMode;
-    if (firstPersonMode) {
-      R.current.fp = {
-        pos: new THREE.Vector3(0, 1.6, 5.8),
-        yaw: 0, pitch: -0.05,
-        keys: {} as Record<string, boolean>,
-        bobPhase: 0,
+    R.current.guidedTour = guidedTour;
+    if (guidedTour) {
+      R.current.tour = {
+        startTime: 0,
+        waypointIdx: 0,
+        segmentStart: 0,
+        started: false,
+        fromPos: new THREE.Vector3(0, 7.5, 15.5),
+        fromLookAt: new THREE.Vector3(0, 1.0, 0),
+        waypoints: TOUR_WAYPOINTS,
       };
       R.current.isOrbit = false;
       setActiveZone(null);
     } else {
+      R.current.tour = null;
       handleReset();
     }
-  }, [firstPersonMode, handleReset]);
+  }, [guidedTour, handleReset]);
 
   // Circadian time-of-day
   useEffect(() => {
@@ -773,6 +817,113 @@ export default function App() {
       }
     }
   }, [comparisonMode]);
+
+  // Tutorial steps configuration
+  const TUTORIAL_STEPS = [
+    {
+      title: "The Problem",
+      text: "Hospital waiting rooms cause stress, anxiety, and discomfort. Patients often spend hours in sterile, noisy spaces with harsh fluorescent lighting — worsening their health outcomes before treatment even begins.",
+      sub: "This prototype reimagines the waiting experience using evidence-based design.",
+      cam: null, // stay at overview
+      highlight: null,
+    },
+    {
+      title: "Navigate the Space",
+      text: "Drag your mouse (or swipe on mobile) to orbit the 3D model around. Try it now!",
+      sub: "You can rotate the view in any direction to explore the architecture.",
+      cam: null,
+      highlight: "viewport",
+    },
+    {
+      title: "Zoom In & Out",
+      text: "Scroll your mouse wheel (or pinch on mobile) to zoom closer or further away from the model.",
+      sub: "Try scrolling now to see the space up close.",
+      cam: null,
+      highlight: "viewport",
+    },
+    {
+      title: "Zone Navigation",
+      text: "Click any of these zone buttons at the top to fly the camera into that area and read about its design interventions.",
+      sub: "Each zone addresses a specific aspect of patient wellbeing.",
+      cam: null,
+      highlight: "zones",
+    },
+    {
+      title: "⬡ Adaptive Seating Clusters",
+      text: "Reconfigurable modular seating in semi-private pods. Ergonomic lounge chairs with acoustic partitions let patients choose between solitude and social warmth.",
+      sub: "↓ 35% reported isolation",
+      cam: { pos: [-1.2, 2.4, 7.2], lookAt: [-3.8, 1.1, 2.8] },
+      highlight: null,
+    },
+    {
+      title: "❧ Biophilic Micro-Garden",
+      text: "A living moss wall, specimen trees, and a recirculating water basin bring measurable stress relief. Natural-spectrum light completes the biophilic immersion.",
+      sub: "↓ 28% cortisol stress markers",
+      cam: { pos: [1.2, 2.4, 7.2], lookAt: [3.8, 1.4, 2.8] },
+      highlight: null,
+    },
+    {
+      title: "◈ Digital Wellness Hub",
+      text: "Touchless kiosks deliver real-time queue updates, guided breathing exercises, and ambient nature loops — designed to inform without overwhelming.",
+      sub: "↓ 20% perceived wait time",
+      cam: { pos: [1.2, 2.4, -6.2], lookAt: [3.8, 1.4, -2.8] },
+      highlight: null,
+    },
+    {
+      title: "◎ Calm Engagement Zone",
+      text: "A low-stimulation alcove with a curated book corner, art & craft station, and guided meditation audio. Full acoustic dampening creates a personal refuge.",
+      sub: "↓ 32% anxiety self-reports",
+      cam: { pos: [-1.2, 2.4, -6.2], lookAt: [-3.8, 1.1, -2.8] },
+      highlight: null,
+    },
+    {
+      title: "Compare: Standard vs Healing",
+      text: "This toggle switches between a typical sterile hospital lighting and the proposed healing environment, so you can visually compare the difference.",
+      sub: "Click it anytime to see what conventional waiting rooms look like.",
+      cam: null,
+      highlight: "comparison",
+    },
+    {
+      title: "Advanced Tools",
+      text: "Open the Tools panel to access: Heatmap overlay, Patient Flow simulation, Guided Tour, Split View comparison, and Material Inspector.",
+      sub: "Each tool reveals a different layer of the design's evidence base.",
+      cam: null,
+      highlight: "tools",
+    },
+    {
+      title: "You're Ready! 🎉",
+      text: "You now know everything you need to explore the Integrated Modular Healing Space. Click around, zoom in, try the tools — make it your own.",
+      sub: "Press H anytime for keyboard shortcuts.",
+      cam: null,
+      highlight: null,
+    },
+  ];
+
+  // Tutorial camera movement
+  useEffect(() => {
+    if (tutorialStep < 0) return;
+    const step = TUTORIAL_STEPS[tutorialStep];
+    if (!step) return;
+    const r = R.current;
+    if (step.cam) {
+      r.isOrbit = false;
+      if (r.tPos && r.tLookAt) {
+        r.tPos.set(step.cam.pos[0], step.cam.pos[1], step.cam.pos[2]);
+        r.tLookAt.set(step.cam.lookAt[0], step.cam.lookAt[1], step.cam.lookAt[2]);
+      }
+    } else if (tutorialStep === 0 || !step.cam) {
+      // Return to overview
+      r.isOrbit = true;
+      if (r.tPos && r.tLookAt) {
+        r.tPos.set(0, 7.5, 15.5);
+        r.tLookAt.set(0, 1.0, 0);
+      }
+    }
+    // Auto-open tools panel for the tools step
+    if (step.highlight === "tools") {
+      setShowTools(true);
+    }
+  }, [tutorialStep]);
 
   // Idle prompt: show after 5s of no interaction, hide on any interaction
   useEffect(() => {
@@ -930,7 +1081,7 @@ export default function App() {
       if (!drag) {
         const hit = getHit(e.clientX, e.clientY);
         setHovered(hit ? ZONES.find(z => z.id === hit.zoneId) : null);
-        el.style.cursor = hit ? "pointer" : (r.firstPersonMode ? "crosshair" : "grab");
+        el.style.cursor = hit ? "pointer" : (r.guidedTour ? "default" : "grab");
         // 3D hover glow: brighten hovered mesh
         const newMesh = hit ? hit.mesh : null;
         if (newMesh !== hoveredMeshRef.current) {
@@ -959,9 +1110,8 @@ export default function App() {
       }
       const dx = e.clientX - lx, dy = e.clientY - ly;
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
-      if (r.firstPersonMode && r.fp) {
-        r.fp.yaw -= dx * 0.004;
-        r.fp.pitch = Math.max(-0.9, Math.min(0.9, r.fp.pitch - dy * 0.004));
+      if (r.guidedTour) {
+        // During guided tour, mouse drag does not control camera
       } else if (r.isOrbit) {
         r.orbit.theta -= dx * 0.005;
         r.orbit.phi    = Math.max(0.18, Math.min(1.35, r.orbit.phi + dy * 0.005));
@@ -1026,17 +1176,10 @@ export default function App() {
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (r.firstPersonMode && r.fp) {
-        r.fp.keys[e.key.toLowerCase()] = false;
-        if (e.key === "Shift") r.fp.keys["shift"] = false;
-      }
+      // no-op: guided tour doesn't use keyboard movement
     };
     // Keyboard shortcuts
     const onKeyDown = (e: KeyboardEvent) => {
-      if (r.firstPersonMode && r.fp) {
-        r.fp.keys[e.key.toLowerCase()] = true;
-        if (e.key === "Shift") r.fp.keys["shift"] = true;
-      }
       // ESC to close panels (priority: modals → modes → zones)
       if (e.key === 'Escape') {
         if (showHelp) {
@@ -1044,8 +1187,8 @@ export default function App() {
         } else if (inspectorMode) {
           setInspectorMode(false);
           setInspectedItem(null);
-        } else if (r.firstPersonMode) {
-          setFirstPersonMode(false);
+        } else if (r.guidedTour) {
+          setGuidedTour(false);
         } else if (activeZone) {
           handleResetRef.current();
         }
@@ -1074,44 +1217,45 @@ export default function App() {
       r.frame = requestAnimationFrame(animate);
       t = ts * 0.001;
 
-      // First-person camera
-      if (r.firstPersonMode && r.fp) {
-        const fp = r.fp;
-        const running = fp.keys["shift"];
-        const spd = running ? 0.15 : 0.07;
-        const fwd = new THREE.Vector3(-Math.sin(fp.yaw), 0, -Math.cos(fp.yaw));
-        const rgt = new THREE.Vector3(-Math.cos(fp.yaw), 0, Math.sin(fp.yaw));
-        const prevX = fp.pos.x, prevZ = fp.pos.z;
-        let moving = false;
-        if (fp.keys["w"] || fp.keys["arrowup"]) { fp.pos.addScaledVector(fwd, spd); moving = true; }
-        if (fp.keys["s"] || fp.keys["arrowdown"]) { fp.pos.addScaledVector(fwd, -spd); moving = true; }
-        if (fp.keys["a"] || fp.keys["arrowleft"]) { fp.pos.addScaledVector(rgt, -spd); moving = true; }
-        if (fp.keys["d"] || fp.keys["arrowright"]) { fp.pos.addScaledVector(rgt, spd); moving = true; }
-        // Bounds (room walls)
-        fp.pos.x = Math.max(-7.3, Math.min(7.3, fp.pos.x));
-        fp.pos.z = Math.max(-5.8, Math.min(6.1, fp.pos.z));
-        // Divider wall collision (low wall at x≈0, z between -4.25 and 5.25)
-        if (fp.pos.z > -4.25 && fp.pos.z < 5.25) {
-          if (prevX < -0.25 && fp.pos.x > -0.25) fp.pos.x = -0.25;
-          else if (prevX > 0.25 && fp.pos.x < 0.25) fp.pos.x = 0.25;
-          else if (Math.abs(fp.pos.x) < 0.25) fp.pos.x = prevX < 0 ? -0.25 : 0.25;
+      // Guided tour camera
+      if (r.guidedTour && r.tour) {
+        const tour = r.tour;
+        if (!tour.started) {
+          tour.started = true;
+          tour.startTime = ts;
+          tour.segmentStart = ts;
+          tour.fromPos.copy(r.camera.position);
+          tour.fromLookAt.copy(r.cLookAt);
         }
-        // Reception desk collision (z < -5.5, x -2 to 2)
-        if (fp.pos.z < -5.3 && Math.abs(fp.pos.x) < 2.2) fp.pos.z = -5.3;
-        // Head bob
-        if (moving) fp.bobPhase += running ? 0.28 : 0.18;
-        const bob = moving ? Math.sin(fp.bobPhase) * 0.035 : 0;
-        const swayX = moving ? Math.cos(fp.bobPhase * 0.5) * 0.015 : 0;
-        fp.pos.y = 1.62 + bob;
-        r.camera.position.copy(fp.pos);
-        r.camera.position.x += swayX;
-        const lookTarget = fp.pos.clone().add(new THREE.Vector3(
-          -Math.sin(fp.yaw) * Math.cos(fp.pitch),
-          Math.sin(fp.pitch),
-          -Math.cos(fp.yaw) * Math.cos(fp.pitch),
-        ));
-        r.cLookAt.copy(lookTarget);
+        const wp = tour.waypoints[tour.waypointIdx];
+        const elapsed = (ts - tour.segmentStart) / 1000;
+        const progress = Math.min(1, elapsed / wp.dur);
+        // Smooth cubic ease in-out
+        const ease = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        const toPos = new THREE.Vector3(wp.pos[0], wp.pos[1], wp.pos[2]);
+        const toLook = new THREE.Vector3(wp.lookAt[0], wp.lookAt[1], wp.lookAt[2]);
+        r.camera.position.lerpVectors(tour.fromPos, toPos, ease);
+        r.cLookAt.lerpVectors(tour.fromLookAt, toLook, ease);
         r.camera.lookAt(r.cLookAt);
+        // Update current tour zone for UI
+        if (wp.zoneIdx !== r._lastTourZone) {
+          r._lastTourZone = wp.zoneIdx;
+          setTourZoneIndex(wp.zoneIdx);
+          if (wp.zoneIdx >= 0) setActiveZone(ZONES[wp.zoneIdx]);
+          else setActiveZone(null);
+        }
+        // Advance to next waypoint
+        if (progress >= 1) {
+          tour.waypointIdx++;
+          if (tour.waypointIdx >= tour.waypoints.length) {
+            // Tour complete
+            setGuidedTour(false);
+            return;
+          }
+          tour.segmentStart = ts;
+          tour.fromPos.copy(r.camera.position);
+          tour.fromLookAt.copy(r.cLookAt);
+        }
       } else {
         // Orbit camera
         if (r.isOrbit) {
@@ -1804,20 +1948,19 @@ export default function App() {
           { key: "heatmap", label: "Heatmap", icon: "▦", active: heatmapMode, toggle: () => setHeatmapMode(v => !v), color: "#E07B4A" },
           { key: "patients", label: "Patient Flow", icon: "◉", active: patientSimActive, toggle: () => setPatientSimActive(v => !v), color: "#4A8A58" },
           {
-            key: "fp", label: "1st Person", icon: "◐", active: firstPersonMode,
+            key: "tour", label: "Guided Tour", icon: "▶", active: guidedTour,
             toggle: () => {
-              if (!firstPersonMode) {
-                setSplitScreen(false); // disable conflicting mode
-                setShowTools(false); // close tool dock for cleaner view
+              if (!guidedTour) {
+                setSplitScreen(false);
               }
-              setFirstPersonMode(v => !v);
+              setGuidedTour(v => !v);
             },
             color: "#5572C4"
           },
           {
             key: "split", label: "Split View", icon: "◫", active: splitScreen,
             toggle: () => {
-              if (!splitScreen) setFirstPersonMode(false); // disable conflicting mode
+              if (!splitScreen) setGuidedTour(false); // disable conflicting mode
               setSplitScreen(v => !v);
             },
             color: "#8A5898"
@@ -2049,28 +2192,50 @@ export default function App() {
         </>
       )}
 
-      {/* First-person hint + crosshair */}
-      {firstPersonMode && (
+      {/* Guided Tour overlay — progress bar + exit button */}
+      {guidedTour && (
         <>
+          {/* Tour progress bar */}
           <div style={{
-            position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-            width: 6, height: 6, borderRadius: 3,
-            background: "rgba(255,255,255,0.55)",
-            boxShadow: "0 0 0 1px rgba(0,0,0,0.3)",
-            zIndex: 14, pointerEvents: "none",
-          }} />
-          <div style={{
-            position: "absolute", bottom: isMobile ? 80 : 110, left: "50%", transform: "translateX(-50%)",
-            padding: "8px 20px", borderRadius: 16,
-            background: "rgba(85,114,196,0.9)", color: "#fff",
-            fontFamily: "'DM Sans'", fontSize: 11, letterSpacing: "0.06em",
-            zIndex: 14, backdropFilter: "blur(12px)",
-            display: "flex", gap: 18,
+            position: "absolute", bottom: isMobile ? 80 : 36, left: "50%", transform: "translateX(-50%)",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+            zIndex: 14, pointerEvents: "auto",
           }}>
-            <span>WASD · Move</span>
-            <span>Shift · Run</span>
-            <span>Drag · Look</span>
-            <span>ESC · Exit</span>
+            <div style={{
+              padding: "8px 20px", borderRadius: 16,
+              background: "rgba(16,10,4,0.88)",
+              border: "1px solid rgba(85,114,196,0.5)",
+              backdropFilter: "blur(12px)",
+              display: "flex", alignItems: "center", gap: 14,
+              fontFamily: "'DM Sans'", fontSize: 11, color: "rgba(248,238,216,0.85)",
+              letterSpacing: "0.05em",
+            }}>
+              <span style={{ color: "#5572C4" }}>▶</span>
+              <span>Guided Tour{tourZoneIndex >= 0 ? ` · ${ZONES[tourZoneIndex].label}` : " · Starting"}</span>
+              <span style={{ color: "rgba(248,238,216,0.35)", fontSize: 10 }}>
+                {R.current.tour ? `${R.current.tour.waypointIdx + 1}/${R.current.tour.waypoints.length}` : ""}
+              </span>
+              <button onClick={() => setGuidedTour(false)} className="zbtn" style={{
+                padding: "4px 12px", borderRadius: 12,
+                border: "1px solid rgba(248,238,216,0.25)",
+                background: "rgba(248,238,216,0.08)",
+                color: "rgba(248,238,216,0.75)",
+                fontSize: 10, cursor: "pointer", fontFamily: "'DM Sans'",
+              }}>
+                Exit Tour
+              </button>
+            </div>
+            {/* Progress dots */}
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              {ZONES.map((z, i) => (
+                <div key={z.id} style={{
+                  width: tourZoneIndex === i ? 18 : 6,
+                  height: 6, borderRadius: 3,
+                  background: tourZoneIndex === i ? z.accent : "rgba(248,238,216,0.2)",
+                  transition: "all 0.4s ease",
+                }} />
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -2188,7 +2353,7 @@ export default function App() {
       )}
 
       {/* Idle Prompt — animated scroll icon after 5s of no interaction */}
-      {idlePrompt && loaded && !activeZone && !showWelcome && !showHelp && !firstPersonMode && (
+      {idlePrompt && loaded && !activeZone && !showWelcome && !showHelp && !guidedTour && tutorialStep < 0 && (
         <div style={{
           position: "absolute",
           bottom: isMobile ? 160 : 120,
@@ -2220,8 +2385,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Welcome Modal — shown on first visit */}
-      {showWelcome && loaded && (
+      {/* Welcome Modal — phased flow */}
+      {showWelcome && loaded && welcomePhase !== "done" && (
         <>
           <div style={{
             position: "absolute", inset: 0,
@@ -2246,6 +2411,7 @@ export default function App() {
             textAlign: "center",
             animation: "welcomeSlideUp 0.6s cubic-bezier(.2,.8,.2,1) forwards",
           }}>
+            {welcomePhase === "intro" && (<>
             <div style={{
               fontSize: 36, marginBottom: 16,
               filter: "drop-shadow(0 4px 12px rgba(196,144,90,0.3))",
@@ -2285,7 +2451,7 @@ export default function App() {
               ))}
             </div>
             <button
-              onClick={() => setShowWelcome(false)}
+              onClick={() => setWelcomePhase("askNew")}
               className="zbtn"
               style={{
                 padding: "12px 36px", borderRadius: 28,
@@ -2306,7 +2472,264 @@ export default function App() {
               color: "rgba(248,238,216,0.3)",
               letterSpacing: "0.08em",
             }}>
-              Drag to orbit · Scroll to zoom · Click zones to explore
+              3D Spatial Prototype · Team 142
+            </div>
+            </>)}
+
+            {welcomePhase === "askNew" && (<>
+              <div style={{
+                fontSize: 32, marginBottom: 16,
+              }}>👋</div>
+              <div style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: isMobile ? 20 : 24, fontWeight: 600,
+                color: "#F8EED8", lineHeight: 1.2,
+                marginBottom: 12,
+              }}>
+                Are you a new user?
+              </div>
+              <div style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: 12, lineHeight: 1.8,
+                color: "rgba(248,238,216,0.55)",
+                maxWidth: 340, margin: "0 auto 28px",
+              }}>
+                If this is your first time, we'll walk you through the space with a
+                quick interactive tutorial covering controls, zones, and tools.
+              </div>
+              <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => {
+                    setShowWelcome(false);
+                    setWelcomePhase("done");
+                    setTutorialStep(0);
+                  }}
+                  className="zbtn"
+                  style={{
+                    padding: "12px 28px", borderRadius: 28,
+                    border: "none",
+                    background: "linear-gradient(135deg, #C4905A, #A07040)",
+                    color: "#fff",
+                    fontSize: 13, fontWeight: 500, letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    boxShadow: "0 8px 28px rgba(196,144,90,0.35)",
+                  }}
+                >
+                  Yes, show me around
+                </button>
+                <button
+                  onClick={() => {
+                    setShowWelcome(false);
+                    setWelcomePhase("done");
+                  }}
+                  className="zbtn"
+                  style={{
+                    padding: "12px 28px", borderRadius: 28,
+                    border: "1px solid rgba(248,238,216,0.25)",
+                    background: "rgba(248,238,216,0.06)",
+                    color: "rgba(248,238,216,0.8)",
+                    fontSize: 13, fontWeight: 400, letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  No, I'll explore
+                </button>
+              </div>
+            </>)}
+          </div>
+        </>
+      )}
+      {/* Interactive Tutorial Overlay */}
+      {tutorialStep >= 0 && tutorialStep < TUTORIAL_STEPS.length && (
+        <>
+          {/* Semi-transparent backdrop — click-through so user can still interact */}
+          {TUTORIAL_STEPS[tutorialStep].highlight === "viewport" && (
+            <div style={{
+              position: "absolute", inset: 0,
+              border: "3px solid rgba(196,144,90,0.5)",
+              borderRadius: 0,
+              pointerEvents: "none",
+              zIndex: 45,
+              boxShadow: "inset 0 0 60px rgba(196,144,90,0.15)",
+            }} />
+          )}
+
+          {/* Highlight ring on zone buttons */}
+          {TUTORIAL_STEPS[tutorialStep].highlight === "zones" && (
+            <div style={{
+              position: "absolute",
+              top: isMobile ? 58 : 70,
+              left: "50%", transform: "translateX(-50%)",
+              width: isMobile ? "calc(100% - 20px)" : 620,
+              height: isMobile ? 40 : 44,
+              border: "2px solid rgba(196,144,90,0.7)",
+              borderRadius: 30,
+              pointerEvents: "none",
+              zIndex: 45,
+              boxShadow: "0 0 20px rgba(196,144,90,0.3)",
+              animation: "pulse 2s ease-in-out infinite",
+            }} />
+          )}
+
+          {/* Highlight on comparison button */}
+          {TUTORIAL_STEPS[tutorialStep].highlight === "comparison" && (
+            <div style={{
+              position: "absolute",
+              top: isMobile ? 10 : 84,
+              right: isMobile ? 10 : 16,
+              width: isMobile ? 120 : 180,
+              height: isMobile ? 44 : 52,
+              border: "2px solid rgba(196,144,90,0.7)",
+              borderRadius: 26,
+              pointerEvents: "none",
+              zIndex: 45,
+              boxShadow: "0 0 20px rgba(196,144,90,0.3)",
+              animation: "pulse 2s ease-in-out infinite",
+            }} />
+          )}
+
+          {/* Highlight on tools FAB */}
+          {TUTORIAL_STEPS[tutorialStep].highlight === "tools" && (
+            <div style={{
+              position: "absolute",
+              left: isMobile ? 6 : 18,
+              bottom: isMobile ? 6 : 18,
+              width: 62, height: 62,
+              border: "2px solid rgba(196,144,90,0.7)",
+              borderRadius: 18,
+              pointerEvents: "none",
+              zIndex: 45,
+              boxShadow: "0 0 20px rgba(196,144,90,0.3)",
+              animation: "pulse 2s ease-in-out infinite",
+            }} />
+          )}
+
+          {/* Tutorial card */}
+          <div className="fade-up" style={{
+            position: "absolute",
+            bottom: isMobile ? 16 : 32,
+            left: "50%", transform: "translateX(-50%)",
+            width: isMobile ? "calc(100% - 24px)" : 520,
+            maxWidth: "calc(100vw - 24px)",
+            zIndex: 46,
+            background: "rgba(16,10,4,0.96)",
+            borderRadius: 18,
+            padding: isMobile ? "20px 18px" : "24px 28px",
+            border: "1px solid rgba(196,144,90,0.35)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+            backdropFilter: "blur(16px)",
+          }}>
+            {/* Progress bar */}
+            <div style={{
+              display: "flex", gap: 3, marginBottom: 16,
+            }}>
+              {TUTORIAL_STEPS.map((_, i) => (
+                <div key={i} style={{
+                  flex: 1, height: 3, borderRadius: 2,
+                  background: i <= tutorialStep ? "#C4905A" : "rgba(248,238,216,0.12)",
+                  transition: "background 0.3s ease",
+                }} />
+              ))}
+            </div>
+
+            {/* Step counter */}
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase",
+              color: "rgba(196,144,90,0.8)",
+              marginBottom: 8,
+            }}>
+              Step {tutorialStep + 1} of {TUTORIAL_STEPS.length}
+            </div>
+
+            {/* Title */}
+            <div style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: isMobile ? 18 : 22, fontWeight: 600,
+              color: "#F8EED8", lineHeight: 1.2,
+              marginBottom: 10,
+            }}>
+              {TUTORIAL_STEPS[tutorialStep].title}
+            </div>
+
+            {/* Body */}
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 12, lineHeight: 1.8,
+              color: "rgba(248,238,216,0.65)",
+              marginBottom: 8,
+            }}>
+              {TUTORIAL_STEPS[tutorialStep].text}
+            </div>
+
+            {/* Sub / metric */}
+            {TUTORIAL_STEPS[tutorialStep].sub && (
+              <div style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: 11, fontWeight: 500,
+                color: "#C4905A",
+                marginBottom: 16,
+                padding: "6px 12px",
+                background: "rgba(196,144,90,0.1)",
+                borderRadius: 8,
+                display: "inline-block",
+              }}>
+                {TUTORIAL_STEPS[tutorialStep].sub}
+              </div>
+            )}
+
+            {/* Navigation */}
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              marginTop: 8, paddingTop: 14,
+              borderTop: "1px solid rgba(248,238,216,0.08)",
+            }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                {tutorialStep > 0 && (
+                  <button onClick={() => setTutorialStep(s => s - 1)} className="zbtn"
+                    style={{
+                      padding: "6px 14px", borderRadius: 16,
+                      border: "1px solid rgba(248,238,216,0.2)",
+                      background: "rgba(248,238,216,0.05)",
+                      color: "rgba(248,238,216,0.7)",
+                      fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans'",
+                    }}>
+                    ← Back
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => { setTutorialStep(-1); handleReset(); }} className="zbtn"
+                  style={{
+                    padding: "6px 14px", borderRadius: 16,
+                    border: "1px solid rgba(248,238,216,0.15)",
+                    background: "transparent",
+                    color: "rgba(248,238,216,0.45)",
+                    fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans'",
+                  }}>
+                  Skip
+                </button>
+                <button onClick={() => {
+                  if (tutorialStep >= TUTORIAL_STEPS.length - 1) {
+                    setTutorialStep(-1);
+                    handleReset();
+                  } else {
+                    setTutorialStep(s => s + 1);
+                  }
+                }} className="zbtn"
+                  style={{
+                    padding: "6px 18px", borderRadius: 16,
+                    border: "none",
+                    background: "linear-gradient(135deg, #C4905A, #A07040)",
+                    color: "#fff",
+                    fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans'",
+                    boxShadow: "0 4px 14px rgba(196,144,90,0.3)",
+                  }}>
+                  {tutorialStep >= TUTORIAL_STEPS.length - 1 ? "Finish ✓" : "Next →"}
+                </button>
+              </div>
             </div>
           </div>
         </>

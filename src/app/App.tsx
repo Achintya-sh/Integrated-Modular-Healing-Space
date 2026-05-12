@@ -370,6 +370,7 @@ export default function App() {
 
     // Camera state
     r.orbit  = { theta: 0.38, phi: 0.58, radius: 15.5 };
+    r.tOrbit = { theta: 0.38, phi: 0.58, radius: 15.5 };
     r.isOrbit = true;
     r.tPos    = new THREE.Vector3(0, 7.5, 15.5);
     r.tLookAt = new THREE.Vector3(0, 1.0, 0);
@@ -420,8 +421,21 @@ export default function App() {
             if (tutorialOrbitAccum > 80) handleTutorialAction("orbit");
           } else if (step.requiredAction) return;
         }
-        r.orbit.theta -= dx * 0.005;
-        r.orbit.phi    = Math.max(0.18, Math.min(1.35, r.orbit.phi + dy * 0.005));
+        if (e.buttons === 2 || (e.buttons === 1 && (e.ctrlKey || e.metaKey))) {
+          // Pan camera (smooth buttery panning)
+          const panSpeed = r.tOrbit.radius * 0.0015;
+          const cx = Math.sin(r.orbit.theta + Math.PI/2);
+          const cz = Math.cos(r.orbit.theta + Math.PI/2);
+          const fx = Math.sin(r.orbit.theta);
+          const fz = Math.cos(r.orbit.theta);
+          
+          r.tLookAt.x -= cx * dx * panSpeed + fx * dy * panSpeed;
+          r.tLookAt.z -= cz * dx * panSpeed + fz * dy * panSpeed;
+        } else {
+          // Orbit camera
+          r.tOrbit.theta -= dx * 0.005;
+          r.tOrbit.phi    = Math.max(0.01, Math.min(Math.PI/2 - 0.05, r.tOrbit.phi + dy * 0.005));
+        }
       }
       lx = e.clientX; ly = e.clientY;
     };
@@ -434,7 +448,7 @@ export default function App() {
           if (tutorialZoomAccum > 150) handleTutorialAction("zoom");
         } else if (step.requiredAction) return;
       }
-      if (r.isOrbit) r.orbit.radius = Math.max(8, Math.min(20, r.orbit.radius + e.deltaY * 0.013));
+      if (r.isOrbit) r.tOrbit.radius = Math.max(5, Math.min(30, r.tOrbit.radius + e.deltaY * 0.015));
     };
     const onClick = (e: MouseEvent) => {
       if (moved) return;
@@ -482,8 +496,8 @@ export default function App() {
             if (tutorialOrbitAccum > 80) handleTutorialAction("orbit");
           }
         }
-        r.orbit.theta -= tdx * 0.005;
-        r.orbit.phi    = Math.max(0.18, Math.min(1.35, r.orbit.phi + tdy * 0.005));
+        r.tOrbit.theta -= tdx * 0.005;
+        r.tOrbit.phi    = Math.max(0.01, Math.min(Math.PI/2 - 0.05, r.tOrbit.phi + tdy * 0.005));
         lt = t;
         e.preventDefault();
       } else if (e.touches.length === 2 && pinchDist > 0) {
@@ -499,7 +513,7 @@ export default function App() {
             if (tutorialZoomAccum > 60) handleTutorialAction("zoom");
           }
         }
-        r.orbit.radius = Math.max(8, Math.min(20, r.orbit.radius + delta * 0.02));
+        r.tOrbit.radius = Math.max(5, Math.min(30, r.tOrbit.radius + delta * 0.02));
         pinchDist = newPinchDist;
         e.preventDefault();
       }
@@ -538,10 +552,10 @@ export default function App() {
       if (e.key === 'h' || e.key === 'H' || e.key === '?') setShowHelp((prev: boolean) => !prev);
       // Arrow keys to orbit
       if (r.isOrbit) {
-        if (e.key === 'ArrowLeft') r.orbit.theta -= 0.1;
-        if (e.key === 'ArrowRight') r.orbit.theta += 0.1;
-        if (e.key === 'ArrowUp') r.orbit.phi = Math.max(0.18, r.orbit.phi - 0.1);
-        if (e.key === 'ArrowDown') r.orbit.phi = Math.min(1.35, r.orbit.phi + 0.1);
+        if (e.key === 'ArrowLeft') r.tOrbit.theta -= 0.15;
+        if (e.key === 'ArrowRight') r.tOrbit.theta += 0.15;
+        if (e.key === 'ArrowUp') r.tOrbit.phi = Math.max(0.01, r.tOrbit.phi - 0.15);
+        if (e.key === 'ArrowDown') r.tOrbit.phi = Math.min(Math.PI/2 - 0.05, r.tOrbit.phi + 0.15);
       }
     };
 
@@ -549,6 +563,7 @@ export default function App() {
     let t = 0;
     const animate = (ts: number) => {
       r.frame = requestAnimationFrame(animate);
+      const dt = Math.min(0.1, ts * 0.001 - t);
       t = ts * 0.001;
 
       // Guided tour camera
@@ -591,19 +606,25 @@ export default function App() {
           tour.fromLookAt.copy(r.cLookAt);
         }
       } else {
-        // Orbit camera
+        // Orbit camera (Smooth and buttery physics)
         if (r.isOrbit) {
+          // Independent of frame rate (approximate time delta limit to avoid huge jumps)
+          const lerpFactor = 1 - Math.exp(-12 * dt); // smooth damping
+          
+          r.orbit.theta += (r.tOrbit.theta - r.orbit.theta) * lerpFactor;
+          r.orbit.phi += (r.tOrbit.phi - r.orbit.phi) * lerpFactor;
+          r.orbit.radius += (r.tOrbit.radius - r.orbit.radius) * lerpFactor;
+
           const { theta, phi, radius } = r.orbit;
           r.tPos.set(
-            radius * Math.sin(phi) * Math.sin(theta),
-            radius * Math.cos(phi),
-            radius * Math.sin(phi) * Math.cos(theta)
+            r.tLookAt.x + radius * Math.sin(phi) * Math.sin(theta),
+            r.tLookAt.y + radius * Math.cos(phi),
+            r.tLookAt.z + radius * Math.sin(phi) * Math.cos(theta)
           );
-          r.tLookAt.set(0, 1, 0);
         }
-        const lerpSpeed = r.isOrbit ? 0.08 : 0.06;
-        r.camera.position.lerp(r.tPos, lerpSpeed);
-        r.cLookAt.lerp(r.tLookAt, lerpSpeed);
+        const lookLerp = r.isOrbit ? 0.12 : 0.06;
+        r.camera.position.lerp(r.tPos, lookLerp);
+        r.cLookAt.lerp(r.tLookAt, lookLerp);
         r.camera.lookAt(r.cLookAt);
       }
 
@@ -784,6 +805,9 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
 
+    const onContextMenu = (e: Event) => e.preventDefault();
+    el.addEventListener("contextmenu", onContextMenu);
+
     const onResize = () => {
       r.camera.aspect = el.clientWidth / el.clientHeight;
       r.camera.updateProjectionMatrix();
@@ -794,6 +818,7 @@ export default function App() {
     return () => {
       cancelAnimationFrame(r.frame);
       el.removeEventListener("mousedown", onDown);
+      el.removeEventListener("contextmenu", onContextMenu);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
       el.removeEventListener("click", onClick);

@@ -951,9 +951,9 @@ export default function App() {
         />
       )}
 
-      {loaded && !showWelcome && tutorialStep < 0 && (displayZone || hovered) && !isMobile && (
+      {loaded && !showWelcome && tutorialStep < 0 && activeZone && !isMobile && (
         <DetailPanel
-          displayZone={displayZone || hovered} activeZone={activeZone}
+          displayZone={activeZone} activeZone={activeZone}
           isMobile={isMobile} goToAdjacentZone={goToAdjacentZone}
         />
       )}

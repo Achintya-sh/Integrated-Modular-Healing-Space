@@ -13,7 +13,17 @@ export function TutorialOverlay({ tutorialStep, setTutorialStep, handleReset, is
 
   return (
     <>
-      {/* Semi-transparent backdrop — click-through so user can still interact */}
+      {/* Dark backdrop — covers entire screen behind highlighted element */}
+      {TUTORIAL_STEPS[tutorialStep].highlight && (
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "rgba(0,0,0,0.7)",
+          pointerEvents: "none",
+          zIndex: 44,
+        }} />
+      )}
+
+      {/* Viewport highlight border */}
       {TUTORIAL_STEPS[tutorialStep].highlight === "viewport" && (
         <div style={{
           position: "absolute", inset: 0,
@@ -22,56 +32,6 @@ export function TutorialOverlay({ tutorialStep, setTutorialStep, handleReset, is
           pointerEvents: "none",
           zIndex: 45,
           boxShadow: "inset 0 0 60px rgba(196,144,90,0.15)",
-        }} />
-      )}
-
-      {/* Highlight ring on zone buttons */}
-      {TUTORIAL_STEPS[tutorialStep].highlight === "zones" && (
-        <div style={{
-          position: "absolute",
-          top: isMobile ? 58 : 70,
-          left: "50%", transform: "translateX(-50%)",
-          width: isMobile ? "calc(100% - 20px)" : 620,
-          height: isMobile ? 40 : 44,
-          border: "2px solid rgba(196,144,90,0.7)",
-          borderRadius: 30,
-          pointerEvents: "none",
-          zIndex: 45,
-          boxShadow: "0 0 20px rgba(196,144,90,0.3)",
-          animation: "pulse 2s ease-in-out infinite",
-        }} />
-      )}
-
-      {/* Highlight on comparison button */}
-      {TUTORIAL_STEPS[tutorialStep].highlight === "comparison" && (
-        <div style={{
-          position: "absolute",
-          top: isMobile ? 10 : 84,
-          right: isMobile ? 10 : 16,
-          width: isMobile ? 120 : 180,
-          height: isMobile ? 44 : 52,
-          border: "2px solid rgba(196,144,90,0.7)",
-          borderRadius: 26,
-          pointerEvents: "none",
-          zIndex: 45,
-          boxShadow: "0 0 20px rgba(196,144,90,0.3)",
-          animation: "pulse 2s ease-in-out infinite",
-        }} />
-      )}
-
-      {/* Highlight on tools FAB */}
-      {TUTORIAL_STEPS[tutorialStep].highlight === "tools" && (
-        <div style={{
-          position: "absolute",
-          left: isMobile ? 6 : 18,
-          bottom: isMobile ? 6 : 18,
-          width: 62, height: 62,
-          border: "2px solid rgba(196,144,90,0.7)",
-          borderRadius: 18,
-          pointerEvents: "none",
-          zIndex: 45,
-          boxShadow: "0 0 20px rgba(196,144,90,0.3)",
-          animation: "pulse 2s ease-in-out infinite",
         }} />
       )}
 
@@ -180,24 +140,26 @@ export function TutorialOverlay({ tutorialStep, setTutorialStep, handleReset, is
               }}>
               Skip
             </button>
-            <button onClick={() => {
-              if (tutorialStep >= TUTORIAL_STEPS.length - 1) {
-                setTutorialStep(-1);
-                handleReset();
-              } else {
-                setTutorialStep(s => s + 1);
-              }
-            }} className="zbtn"
-              style={{
-                padding: "8px 24px", borderRadius: 20,
-                border: "none",
-                background: "linear-gradient(135deg, #D4A06A, #B08050)",
-                color: "#fff",
-                fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans'",
-                boxShadow: "0 4px 14px rgba(196,144,90,0.5)",
-              }}>
-              {tutorialStep >= TUTORIAL_STEPS.length - 1 ? "Finish ✓" : "Next →"}
-            </button>
+            {!(TUTORIAL_STEPS[tutorialStep] as any).requiredAction && (
+              <button onClick={() => {
+                if (tutorialStep >= TUTORIAL_STEPS.length - 1) {
+                  setTutorialStep(-1);
+                  handleReset();
+                } else {
+                  setTutorialStep(s => s + 1);
+                }
+              }} className="zbtn"
+                style={{
+                  padding: "8px 24px", borderRadius: 20,
+                  border: "none",
+                  background: "linear-gradient(135deg, #D4A06A, #B08050)",
+                  color: "#fff",
+                  fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans'",
+                  boxShadow: "0 4px 14px rgba(196,144,90,0.5)",
+                }}>
+                {tutorialStep >= TUTORIAL_STEPS.length - 1 ? "Finish ✓" : "Next →"}
+              </button>
+            )}
           </div>
         </div>
       </div>

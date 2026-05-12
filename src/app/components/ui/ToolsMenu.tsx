@@ -18,6 +18,8 @@ interface ToolsMenuProps {
   circadianTime: number;
   setCircadianTime: React.Dispatch<React.SetStateAction<number>>;
   comparisonMode: boolean;
+  onTutorialAction?: (action: string) => void;
+  tutorialHighlight?: string | null;
 }
 
 export function ToolsMenu({
@@ -28,13 +30,17 @@ export function ToolsMenu({
   splitScreen, setSplitScreen,
   inspectorMode, setInspectorMode, setInspectedItem,
   circadianTime, setCircadianTime,
-  comparisonMode
+  comparisonMode, onTutorialAction, tutorialHighlight
 }: ToolsMenuProps) {
+  const isHighlighted = tutorialHighlight === "tools";
   return (
     <>
       {/* Tools toggle FAB */}
       <button
-        onClick={() => setShowTools(v => !v)}
+        onClick={() => {
+          setShowTools(v => !v);
+          if (!showTools && onTutorialAction) onTutorialAction("open_tools");
+        }}
         title={showTools ? "Hide tools" : "Show tools"}
         className={`tools-fab ${showTools ? "open" : ""}`}
         style={{
@@ -44,7 +50,7 @@ export function ToolsMenu({
           bottom: isMobile ? 14 : 26,
           width: 46, height: 46,
           borderRadius: 13,
-          border: `1px solid ${showTools ? "rgba(196,144,90,0.6)" : "rgba(248,238,216,0.14)"}`,
+          border: `1px solid ${isHighlighted ? "rgba(196,144,90,0.8)" : showTools ? "rgba(196,144,90,0.6)" : "rgba(248,238,216,0.14)"}`,
           background: showTools
             ? "linear-gradient(135deg, rgba(196,144,90,0.92), rgba(160,112,80,0.92))"
             : "rgba(18,12,6,0.72)",
@@ -54,8 +60,9 @@ export function ToolsMenu({
           boxShadow: showTools
             ? "0 8px 28px rgba(196,144,90,0.28), inset 0 1px 0 rgba(255,255,255,0.12)"
             : "0 4px 14px rgba(0,0,0,0.3)",
-          zIndex: 25,
+          zIndex: isHighlighted ? 45 : 25,
           padding: 0,
+          ...(isHighlighted ? { animation: "tutorialGlow 2s ease-in-out infinite" } : {}),
         }}
       >
         <span className="bars">

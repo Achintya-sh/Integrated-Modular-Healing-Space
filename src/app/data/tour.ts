@@ -21,17 +21,19 @@ export const TUTORIAL_STEPS = [
   },
   {
     title: "Navigate the Space",
-    text: "Drag your mouse (or swipe on mobile) to orbit the 3D model around. Try it now!",
+    text: "Drag your mouse (or swipe on mobile / touchpad) to orbit the 3D model around. Try it now!",
     sub: "You can rotate the view in any direction to explore the architecture.",
     cam: null,
     highlight: "viewport",
+    requiredAction: "orbit",
   },
   {
     title: "Zoom In & Out",
-    text: "Scroll your mouse wheel (or pinch on mobile) to zoom closer or further away from the model.",
+    text: "Scroll your mouse wheel (or pinch on mobile / two-finger swipe on touchpad) to zoom closer or further away from the model. Try it now!",
     sub: "Try scrolling now to see the space up close.",
     cam: null,
     highlight: "viewport",
+    requiredAction: "zoom",
   },
   {
     title: "Zone Navigation",
@@ -39,6 +41,7 @@ export const TUTORIAL_STEPS = [
     sub: "Each zone addresses a specific aspect of patient wellbeing.",
     cam: null,
     highlight: "zones",
+    requiredAction: "click_zone",
   },
   {
     title: "⬡ Adaptive Seating Clusters",
@@ -74,6 +77,7 @@ export const TUTORIAL_STEPS = [
     sub: "Click it anytime to see what conventional waiting rooms look like.",
     cam: null,
     highlight: "comparison",
+    requiredAction: "toggle_comparison",
   },
   {
     title: "Advanced Tools",
@@ -81,6 +85,7 @@ export const TUTORIAL_STEPS = [
     sub: "Each tool reveals a different layer of the design's evidence base.",
     cam: null,
     highlight: "tools",
+    requiredAction: "open_tools",
   },
   {
     title: "You're Ready! 🎉",

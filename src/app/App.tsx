@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { ZONES } from "./data/zones";
+import { TOUR_WAYPOINTS, TUTORIAL_STEPS } from "./data/tour";
 import { buildScene } from "./scene/SceneBuilder";
 import { applySplitLighting, std, box, cyl, sph } from "./scene/utils";
 import {
@@ -36,6 +37,15 @@ export default function App() {
   const [idlePrompt, setIdlePrompt] = useState(false);
   const idleTimerRef = useRef<any>(null);
   const hoveredMeshRef = useRef<THREE.Mesh | null>(null);
+
+  const handleTutorialAction = useCallback((action: string) => {
+    setTutorialStep((prev) => {
+      if (prev >= 0 && (TUTORIAL_STEPS[prev] as any).requiredAction === action) {
+        return prev + 1;
+      }
+      return prev;
+    });
+  }, []);
 
   const handleZoom = useCallback((zone: any) => {
     // Toggle: if clicking the same zone, reset to overview
@@ -99,20 +109,6 @@ export default function App() {
     R.current.patientSimActive = patientSimActive;
     if (!patientSimActive) setOccupancy({});
   }, [patientSimActive]);
-
-  // Guided tour waypoints: entrance → each zone → overview
-  const TOUR_WAYPOINTS = [
-    { pos: [0, 1.7, 5.8], lookAt: [0, 1.2, 0], dur: 2.5, zoneIdx: -1 },       // Entrance overview
-    { pos: [-1.2, 2.0, 5.5], lookAt: [-3.8, 1.1, 2.8], dur: 2.5, zoneIdx: 0 },  // Approach Seating
-    { pos: [-1.8, 1.7, 3.8], lookAt: [-3.8, 1.0, 2.8], dur: 4.0, zoneIdx: 0 },  // Dwell at Seating
-    { pos: [1.0, 1.8, 4.2], lookAt: [3.8, 1.4, 2.8], dur: 2.5, zoneIdx: 1 },    // Approach Biophilic
-    { pos: [2.0, 1.7, 3.4], lookAt: [4.5, 1.2, 3.0], dur: 4.0, zoneIdx: 1 },    // Dwell at Biophilic
-    { pos: [1.0, 1.8, -0.5], lookAt: [3.8, 1.4, -2.8], dur: 2.5, zoneIdx: 2 },  // Approach Digital
-    { pos: [2.0, 1.7, -2.2], lookAt: [3.8, 1.5, -3.2], dur: 4.0, zoneIdx: 2 },  // Dwell at Digital
-    { pos: [-1.0, 1.8, -1.0], lookAt: [-3.8, 1.1, -2.8], dur: 2.5, zoneIdx: 3 },// Approach Calm
-    { pos: [-2.0, 1.7, -2.5], lookAt: [-3.8, 1.0, -2.8], dur: 4.0, zoneIdx: 3 },// Dwell at Calm
-    { pos: [0, 4.5, 8.0], lookAt: [0, 1.0, 0], dur: 3.0, zoneIdx: -1 },          // Rise to overview
-  ];
 
   // Guided tour mode
   useEffect(() => {
@@ -221,86 +217,9 @@ export default function App() {
     }
   }, [comparisonMode]);
 
-  // Tutorial steps configuration
-  const TUTORIAL_STEPS = [
-    {
-      title: "The Problem",
-      text: "Hospital waiting rooms cause stress, anxiety, and discomfort. Patients often spend hours in sterile, noisy spaces with harsh fluorescent lighting — worsening their health outcomes before treatment even begins.",
-      sub: "This prototype reimagines the waiting experience using evidence-based design.",
-      cam: null, // stay at overview
-      highlight: null,
-    },
-    {
-      title: "Navigate the Space",
-      text: "Drag your mouse (or swipe on mobile) to orbit the 3D model around. Try it now!",
-      sub: "You can rotate the view in any direction to explore the architecture.",
-      cam: null,
-      highlight: "viewport",
-    },
-    {
-      title: "Zoom In & Out",
-      text: "Scroll your mouse wheel (or pinch on mobile) to zoom closer or further away from the model.",
-      sub: "Try scrolling now to see the space up close.",
-      cam: null,
-      highlight: "viewport",
-    },
-    {
-      title: "Zone Navigation",
-      text: "Click any of these zone buttons at the top to fly the camera into that area and read about its design interventions.",
-      sub: "Each zone addresses a specific aspect of patient wellbeing.",
-      cam: null,
-      highlight: "zones",
-    },
-    {
-      title: "⬡ Adaptive Seating Clusters",
-      text: "Reconfigurable modular seating in semi-private pods. Ergonomic lounge chairs with acoustic partitions let patients choose between solitude and social warmth.",
-      sub: "↓ 35% reported isolation",
-      cam: { pos: [-1.2, 2.4, 7.2], lookAt: [-3.8, 1.1, 2.8] },
-      highlight: null,
-    },
-    {
-      title: "❧ Biophilic Micro-Garden",
-      text: "A living moss wall, specimen trees, and a recirculating water basin bring measurable stress relief. Natural-spectrum light completes the biophilic immersion.",
-      sub: "↓ 28% cortisol stress markers",
-      cam: { pos: [1.2, 2.4, 7.2], lookAt: [3.8, 1.4, 2.8] },
-      highlight: null,
-    },
-    {
-      title: "◈ Digital Wellness Hub",
-      text: "Touchless kiosks deliver real-time queue updates, guided breathing exercises, and ambient nature loops — designed to inform without overwhelming.",
-      sub: "↓ 20% perceived wait time",
-      cam: { pos: [1.2, 2.4, -6.2], lookAt: [3.8, 1.4, -2.8] },
-      highlight: null,
-    },
-    {
-      title: "◎ Calm Engagement Zone",
-      text: "A low-stimulation alcove with a curated book corner, art & craft station, and guided meditation audio. Full acoustic dampening creates a personal refuge.",
-      sub: "↓ 32% anxiety self-reports",
-      cam: { pos: [-1.2, 2.4, -6.2], lookAt: [-3.8, 1.1, -2.8] },
-      highlight: null,
-    },
-    {
-      title: "Compare: Standard vs Healing",
-      text: "This toggle switches between a typical sterile hospital lighting and the proposed healing environment, so you can visually compare the difference.",
-      sub: "Click it anytime to see what conventional waiting rooms look like.",
-      cam: null,
-      highlight: "comparison",
-    },
-    {
-      title: "Advanced Tools",
-      text: "Open the Tools panel to access: Heatmap overlay, Patient Flow simulation, Guided Tour, Split View comparison, and Material Inspector.",
-      sub: "Each tool reveals a different layer of the design's evidence base.",
-      cam: null,
-      highlight: "tools",
-    },
-    {
-      title: "You're Ready! 🎉",
-      text: "You now know everything you need to explore the Integrated Modular Healing Space. Click around, zoom in, try the tools — make it your own.",
-      sub: "Press H anytime for keyboard shortcuts.",
-      cam: null,
-      highlight: null,
-    },
-  ];
+  useEffect(() => {
+    R.current.tutorialStep = tutorialStep;
+  }, [tutorialStep]);
 
   // Tutorial camera movement
   useEffect(() => {
@@ -473,6 +392,9 @@ export default function App() {
 
     // Drag state
     let drag = false, moved = false, lx = 0, ly = 0;
+    // Tutorial interaction accumulators — advance only after meaningful movement
+    let tutorialOrbitAccum = 0;
+    let tutorialZoomAccum = 0;
 
     const onDown = (e: MouseEvent) => {
       drag = true; moved = false;
@@ -516,6 +438,13 @@ export default function App() {
       if (r.guidedTour) {
         // During guided tour, mouse drag does not control camera
       } else if (r.isOrbit) {
+        if (r.tutorialStep >= 0) {
+          const step = TUTORIAL_STEPS[r.tutorialStep] as any;
+          if (step.requiredAction === "orbit") {
+            tutorialOrbitAccum += Math.abs(dx) + Math.abs(dy);
+            if (tutorialOrbitAccum > 80) handleTutorialAction("orbit");
+          } else if (step.requiredAction) return;
+        }
         r.orbit.theta -= dx * 0.005;
         r.orbit.phi    = Math.max(0.18, Math.min(1.35, r.orbit.phi + dy * 0.005));
       }
@@ -523,10 +452,22 @@ export default function App() {
     };
     const onUp   = () => { drag = false; el.style.cursor = "grab"; };
     const onWheel = (e: WheelEvent) => {
+      if (r.tutorialStep >= 0) {
+        const step = TUTORIAL_STEPS[r.tutorialStep] as any;
+        if (step.requiredAction === "zoom") {
+          tutorialZoomAccum += Math.abs(e.deltaY);
+          if (tutorialZoomAccum > 150) handleTutorialAction("zoom");
+        } else if (step.requiredAction) return;
+      }
       if (r.isOrbit) r.orbit.radius = Math.max(8, Math.min(20, r.orbit.radius + e.deltaY * 0.013));
     };
     const onClick = (e: MouseEvent) => {
       if (moved) return;
+      if (r.tutorialStep >= 0 && (TUTORIAL_STEPS[r.tutorialStep] as any).requiredAction) {
+        // Only allow specific clicks if explicitly handled (like zone navigation)
+        // Block raw scene clicks during required action steps
+        return;
+      }
       const hit = getHit(e.clientX, e.clientY);
       if (!hit) return;
       // Inspector mode: show material info if available
@@ -558,8 +499,16 @@ export default function App() {
       if (e.touches.length === 1 && lt) {
         // Single finger - orbit
         const t = e.touches[0];
-        r.orbit.theta -= (t.clientX - lt.clientX) * 0.005;
-        r.orbit.phi    = Math.max(0.18, Math.min(1.35, r.orbit.phi + (t.clientY - lt.clientY) * 0.005));
+        const tdx = t.clientX - lt.clientX, tdy = t.clientY - lt.clientY;
+        if (r.tutorialStep >= 0) {
+          const step = TUTORIAL_STEPS[r.tutorialStep] as any;
+          if (step.requiredAction === "orbit") {
+            tutorialOrbitAccum += Math.abs(tdx) + Math.abs(tdy);
+            if (tutorialOrbitAccum > 80) handleTutorialAction("orbit");
+          }
+        }
+        r.orbit.theta -= tdx * 0.005;
+        r.orbit.phi    = Math.max(0.18, Math.min(1.35, r.orbit.phi + tdy * 0.005));
         lt = t;
         e.preventDefault();
       } else if (e.touches.length === 2 && pinchDist > 0) {
@@ -568,6 +517,13 @@ export default function App() {
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         const newPinchDist = Math.sqrt(dx * dx + dy * dy);
         const delta = pinchDist - newPinchDist;
+        if (r.tutorialStep >= 0) {
+          const step = TUTORIAL_STEPS[r.tutorialStep] as any;
+          if (step.requiredAction === "zoom") {
+            tutorialZoomAccum += Math.abs(delta);
+            if (tutorialZoomAccum > 60) handleTutorialAction("zoom");
+          }
+        }
         r.orbit.radius = Math.max(8, Math.min(20, r.orbit.radius + delta * 0.02));
         pinchDist = newPinchDist;
         e.preventDefault();
@@ -896,6 +852,8 @@ export default function App() {
     );
   }
 
+  const tutorialHighlight = tutorialStep >= 0 ? (TUTORIAL_STEPS[tutorialStep] as any)?.highlight || null : null;
+
   return (
     <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", background: "#16100A" }}>
       <style>{`
@@ -936,6 +894,10 @@ export default function App() {
         .tools-fab .cross { opacity: 0; transform: translate(-50%, -50%) rotate(-45deg) scale(0.5); }
         .tools-fab.open .bars { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) scale(0.5); }
         .tools-fab.open .cross { opacity: 1; transform: translate(-50%, -50%) rotate(0) scale(1); }
+        @keyframes tutorialGlow {
+          0%, 100% { box-shadow: 0 0 8px rgba(196,144,90,0.4), 0 0 20px rgba(196,144,90,0.2); }
+          50% { box-shadow: 0 0 16px rgba(196,144,90,0.8), 0 0 40px rgba(196,144,90,0.4), 0 0 60px rgba(196,144,90,0.15); }
+        }
       `}</style>
 
       {/* 3D Viewport */}
@@ -954,13 +916,19 @@ export default function App() {
 
       <TopNav
         isMobile={isMobile} comparisonMode={comparisonMode} setComparisonMode={setComparisonMode}
-        showHelp={showHelp} setShowHelp={setShowHelp}
+        showHelp={showHelp} setShowHelp={setShowHelp} onTutorialAction={handleTutorialAction}
+        tutorialHighlight={tutorialHighlight}
       />
 
       {loaded && !showWelcome && (
         <ZoneNavigation
           activeZone={activeZone} isMobile={isMobile}
-          handleZoom={handleZoomRef.current} handleReset={handleResetRef.current}
+          handleZoom={(zone) => {
+            handleTutorialAction("click_zone");
+            handleZoomRef.current(zone);
+          }} 
+          handleReset={handleResetRef.current}
+          tutorialHighlight={tutorialHighlight}
         />
       )}
 
@@ -996,6 +964,8 @@ export default function App() {
         setInspectedItem={setInspectedItem}
         circadianTime={circadianTime} setCircadianTime={setCircadianTime}
         comparisonMode={comparisonMode}
+        onTutorialAction={handleTutorialAction}
+        tutorialHighlight={tutorialHighlight}
       />
 
       <MaterialInspector

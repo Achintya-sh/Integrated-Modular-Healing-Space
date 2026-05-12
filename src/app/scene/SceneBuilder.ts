@@ -363,9 +363,7 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
     };
     scene.add(tile); clickables.push({ mesh: tile, zoneId: "biophilic" });
   }
-  // Moss wall frame
-  const mwFrame = new THREE.Mesh(box(0.06, 3.0, 2.88), std(0x6A4820, 0.6, 0.2));
-  mwFrame.position.set(7.94, 1.4, 2.4); mwFrame.rotation.y = -Math.PI / 2; scene.add(mwFrame);
+  // (Moss wall frame removed for a clean, frameless look)
 
   // Specimen trees
   [[2.8, 1.8], [4.4, 3.0], [3.2, 1.1]].forEach(([x, z], i) => {
@@ -431,52 +429,133 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
   });
   animRefs.screens = screens;
 
-  // Alcove back wall panel (blue-accent)
-  const alcove = new THREE.Mesh(box(4.2, 2.8, 0.06), std(0x1A2030, 0.8));
-  alcove.position.set(3.8, 1.4, -6.47); scene.add(alcove);
+
 
   // ── ZONE 4: Calm Engagement ──────────────────────────────────────────────────
 
-  // Bookshelf
-  const shelfMat = std(0x6A4220, 0.72);
-  const shelfBody2 = new THREE.Mesh(box(3.2, 1.9, 0.34), shelfMat);
-  shelfBody2.position.set(-3.8, 0.95, -6.33); shelfBody2.castShadow = true;
-  scene.add(shelfBody2); clickables.push({ mesh: shelfBody2, zoneId: "calm" });
-  // Shelf planks
-  [0.28, 0.92, 1.56].forEach(sy => {
-    const plank = new THREE.Mesh(box(3.12, 0.05, 0.3), std(0x8A5830, 0.65));
-    plank.position.set(-3.8, sy, -6.18); scene.add(plank);
+  // ── High-Quality Architectural Bookshelf ──
+  const shGroup = new THREE.Group();
+  shGroup.position.set(-3.8, 0, -6.32);
+  const shMat = std(0x5A3820, 0.6, 0.1); // Rich dark walnut/oak
+  const shBackMat = std(0x4A2C18, 0.8, 0.1); // Darker backboard
+  
+  // Backboard
+  const sBack = new THREE.Mesh(box(3.2, 2.4, 0.02), shBackMat);
+  sBack.position.set(0, 1.2, -0.16); sBack.castShadow = true; shGroup.add(sBack);
+  
+  // Top/Bottom/Side frame
+  const sTop = new THREE.Mesh(box(3.24, 0.06, 0.36), shMat);
+  sTop.position.set(0, 2.43, 0); sTop.castShadow = true; shGroup.add(sTop);
+  
+  const sBot = new THREE.Mesh(box(3.24, 0.08, 0.36), shMat);
+  sBot.position.set(0, 0.04, 0); sBot.castShadow = true; shGroup.add(sBot);
+  
+  [-1.6, 1.6].forEach(sx => {
+    const sSide = new THREE.Mesh(box(0.06, 2.4, 0.36), shMat);
+    sSide.position.set(sx, 1.2, 0); sSide.castShadow = true; shGroup.add(sSide);
   });
-  // Books — realistic with cover + page edges
-  const bookColors = [0xC05050, 0x5070C0, 0x50A060, 0xC0A030, 0x805090, 0xC07040, 0x405080, 0xC04888, 0x408A70];
-  const bookHeights = [0.42, 0.50, 0.44, 0.52, 0.38, 0.48, 0.46, 0.40, 0.50];
-  const bookWidths  = [0.08, 0.10, 0.07, 0.12, 0.06, 0.09, 0.11, 0.08, 0.10];
-  bookColors.forEach((c, i) => {
-    const bw = bookWidths[i], bh = bookHeights[i], bd = 0.20;
+  
+  // Vertical dividers (creates 3 bays)
+  [-0.53, 0.53].forEach(sx => {
+    const div = new THREE.Mesh(box(0.04, 2.32, 0.32), shMat);
+    div.position.set(sx, 1.2, -0.02); div.castShadow = true; shGroup.add(div);
+  });
+  
+  // Horizontal shelves
+  const shelfY = [0.45, 0.85, 1.25, 1.65, 2.05];
+  shelfY.forEach(sy => {
+    const sh = new THREE.Mesh(box(3.14, 0.03, 0.32), shMat);
+    sh.position.set(0, sy, -0.02); sh.castShadow = true; shGroup.add(sh);
+  });
+  
+  scene.add(shGroup);
+  shGroup.children.forEach(c => { if ((c as any).isMesh) clickables.push({ mesh: c, zoneId: "calm" }); });
+
+  // Abstract Paintings for a homely feel
+  function addPainting(px: number, py: number, pz: number, ry: number, width: number, height: number, colors: number[]) {
     const g = new THREE.Group();
-    // Cover (colored, slightly larger)
-    const cover = new THREE.Mesh(box(bw, bh, bd), std(c, 0.88));
-    cover.castShadow = true; g.add(cover);
-    // Spine (darker strip on the front edge)
-    const spine = new THREE.Mesh(box(bw + 0.004, bh - 0.01, 0.015), std(c, 0.75, 0.05));
-    spine.position.z = bd / 2 + 0.007; g.add(spine);
-    // Page block (cream/white inset, slightly smaller)
-    const pages = new THREE.Mesh(box(bw - 0.014, bh - 0.02, bd - 0.025),
-      std(0xF5F0E0, 0.95));
-    pages.position.x = 0.004; g.add(pages);
-    // Page lines (thin grooves on top edge for realism)
-    const pageTop = new THREE.Mesh(box(bw - 0.016, 0.003, bd - 0.03),
-      std(0xE8E0D0, 0.9));
-    pageTop.position.y = bh / 2 - 0.008; g.add(pageTop);
-    // Position on shelf
-    const tilt = (i % 4 === 2) ? 0.12 : (i % 3 - 1) * 0.04;
-    const lean = (i === 3 || i === 7) ? 0.08 : 0; // some books lean slightly
-    g.position.set(-4.85 + i * 0.34, 1.12, -6.16);
-    g.rotation.y = tilt;
-    g.rotation.z = lean;
+    const frameDepth = 0.04, frameW = 0.04;
+    const frameMat = std(0x2A1A10, 0.6, 0.1); // Dark wood frame
+    // Canvas
+    const canvas = new THREE.Mesh(box(width, height, 0.01), std(0xF5F0E8, 0.95));
+    canvas.position.z = frameDepth / 2; g.add(canvas);
+    // Abstract geometric shapes on canvas
+    colors.forEach((c, i) => {
+       const shapeW = width * (0.3 + Math.random() * 0.4);
+       const shapeH = height * (0.3 + Math.random() * 0.4);
+       const shape = new THREE.Mesh(box(shapeW, shapeH, 0.002), std(c, 0.9));
+       shape.position.set((Math.random() - 0.5) * (width - shapeW), (Math.random() - 0.5) * (height - shapeH), frameDepth / 2 + 0.006 + i * 0.001);
+       g.add(shape);
+    });
+    // Frame borders
+    const tB = new THREE.Mesh(box(width + frameW * 2, frameW, frameDepth), frameMat);
+    tB.position.set(0, height / 2 + frameW / 2, 0); g.add(tB);
+    const bB = new THREE.Mesh(box(width + frameW * 2, frameW, frameDepth), frameMat);
+    bB.position.set(0, -height / 2 - frameW / 2, 0); g.add(bB);
+    const lB = new THREE.Mesh(box(frameW, height, frameDepth), frameMat);
+    lB.position.set(-width / 2 - frameW / 2, 0, 0); g.add(lB);
+    const rB = new THREE.Mesh(box(frameW, height, frameDepth), frameMat);
+    rB.position.set(width / 2 + frameW / 2, 0, 0); g.add(rB);
+    
+    g.position.set(px, py, pz); g.rotation.y = ry;
     scene.add(g);
-    g.children.forEach((m: any) => { if (m.isMesh) clickables.push({ mesh: m, zoneId: "calm" }); });
-  });
+  }
+  
+  // Left wall large landscape painting
+  addPainting(-7.94, 1.8, 1.0, Math.PI / 2, 2.0, 1.2, [0x4A6A8A, 0xC49070, 0xD8C8A8, 0x2A3A4A]);
+  // Back wall portrait near Calm Zone
+  addPainting(-1.2, 1.7, -6.44, 0, 1.0, 1.4, [0x5A7848, 0xA87850, 0xE0D0B8]);
+  // Back wall square near Digital Hub
+  addPainting(1.8, 1.7, -6.44, 0, 0.9, 0.9, [0xD4A840, 0x4A2C0E, 0xC8A87A]);
+
+  // Books — properly scaled (20-35cm tall) and organized in natural clusters
+  const bookColors = [0xC05050, 0x5070C0, 0x50A060, 0xC0A030, 0x805090, 0xC07040, 0x405080, 0xC04888, 0x408A70, 0x306070, 0x904040, 0xD0A040, 0x40A090, 0x805040, 0x5050B0];
+  const bookHeights = [0.32, 0.28, 0.35, 0.30, 0.25, 0.33, 0.29, 0.27, 0.34, 0.31, 0.26, 0.36, 0.28, 0.33, 0.30];
+  const bookWidths  = [0.04, 0.05, 0.03, 0.06, 0.04, 0.05, 0.04, 0.03, 0.04, 0.05, 0.03, 0.06, 0.04, 0.04, 0.05];
+  
+  for (let shelfLvl = 0; shelfLvl < 4; shelfLvl++) {
+    for (let bay = 0; bay < 3; bay++) {
+      // 70% chance a bay section has a cluster of books
+      if (Math.random() > 0.3) {
+        const numBooks = 4 + Math.floor(Math.random() * 9); // 4 to 12 books per cluster
+        const bayCenterX = (bay - 1) * 1.06;
+        let startX = bayCenterX - 0.35 + Math.random() * 0.3; // Random start pos within bay
+        
+        for (let b = 0; b < numBooks; b++) {
+          const typeIdx = Math.floor(Math.random() * bookColors.length);
+          const c = bookColors[typeIdx];
+          const bw = bookWidths[typeIdx];
+          const bh = bookHeights[typeIdx] + (Math.random() * 0.04 - 0.02); // slight variance
+          const bd = 0.20 + (Math.random() * 0.02 - 0.01);
+          
+          const g = new THREE.Group();
+          const cover = new THREE.Mesh(box(bw, bh, bd), std(c, 0.88));
+          cover.castShadow = true; g.add(cover);
+          const spine = new THREE.Mesh(box(bw + 0.002, bh - 0.01, 0.015), std(c, 0.75, 0.05));
+          spine.position.z = bd / 2 + 0.007; g.add(spine);
+          const pages = new THREE.Mesh(box(bw - 0.006, bh - 0.015, bd - 0.015), std(0xF5F0E0, 0.95));
+          pages.position.x = 0.002; g.add(pages);
+          
+          const sy = shelfY[shelfLvl] + 0.015 + bh / 2;
+          
+          // Leaning books at the right end of the cluster
+          let lean = 0;
+          if (b >= numBooks - 2 && Math.random() > 0.4) {
+             lean = 0.12 + Math.random() * 0.1;
+             startX += 0.03; // gap for lean
+          }
+          
+          g.position.set(-3.8 + startX, sy, -6.22 + (Math.random() * 0.02 - 0.01));
+          g.rotation.z = -lean; // Negative to lean right
+          
+          scene.add(g);
+          g.children.forEach((m: any) => { if (m.isMesh) clickables.push({ mesh: m, zoneId: "calm" }); });
+          
+          startX += bw + 0.002 + (lean > 0 ? 0.03 : 0);
+        }
+      }
+    }
+  }
 
   // Meditation cushions
   const cushionMat = std(0xA865A8, 0.88);
@@ -516,11 +595,11 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
   animRefs.lampLight = lampLight2;
 
   // Acoustic wall panels (calm zone — mounted on back and left walls)
-  // Back wall panel
+  // Back wall panel (shifted left to avoid bookshelf)
   const backPanel = new THREE.Mesh(box(2.2, 2.0, 0.06), std(0xD8C8A8, 0.95));
-  backPanel.position.set(-4.8, 1.6, -6.44); scene.add(backPanel);
+  backPanel.position.set(-6.7, 1.6, -6.44); scene.add(backPanel);
   const backPanelInset = new THREE.Mesh(box(2.0, 1.8, 0.04), std(0xC8B898, 0.98));
-  backPanelInset.position.set(-4.8, 1.6, -6.42); scene.add(backPanelInset);
+  backPanelInset.position.set(-6.7, 1.6, -6.42); scene.add(backPanelInset);
   // Left wall panel
   const leftPanel = new THREE.Mesh(box(0.06, 1.8, 2.0), std(0xD8C8A8, 0.95));
   leftPanel.position.set(-7.95, 1.6, -3.5); scene.add(leftPanel);

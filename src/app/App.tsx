@@ -830,7 +830,26 @@ export default function App() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("resize", onResize);
       if (el.contains(r.renderer.domElement)) el.removeChild(r.renderer.domElement);
+      
+      // CRITICAL: Deep dispose of all geometries and materials to prevent massive RAM leaks
+      if (r.scene) {
+        r.scene.traverse((obj: any) => {
+          if (obj.isMesh) {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+              if (Array.isArray(obj.material)) {
+                obj.material.forEach((m: any) => m.dispose());
+              } else {
+                obj.material.dispose();
+              }
+            }
+          }
+        });
+        r.scene.clear();
+      }
+      
       r.renderer.dispose();
+      r.renderer.forceContextLoss(); // Ensure GPU context is fully released
     };
   }, []);
 

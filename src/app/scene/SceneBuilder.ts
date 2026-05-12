@@ -249,7 +249,7 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
   const cushMat   = std(0xD4A880, 0.82);
 
   // Modular seat helper — seats: number of cushions (width scales), variant: 'sofa' | 'chair'
-  function makeSeat(cx: number, cz: number, ry: number, seats: number, variant: "sofa" | "chair" = "sofa") {
+  function makeSeat(cx: number, cz: number, ry: number, seats: number, variant: "sofa" | "chair" = "sofa", zoneId: string = "seating") {
     const g = new THREE.Group();
     const seatW = variant === "chair" ? 0.74 : 0.78;
     const depth = variant === "chair" ? 0.82 : 0.88;
@@ -281,9 +281,15 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
     }
     g.position.set(cx, 0, cz); g.rotation.y = ry;
     scene.add(g);
-    g.children.forEach((m: any) => { if (m.isMesh) clickables.push({ mesh: m, zoneId: "seating" }); });
+    g.children.forEach((m: any) => { if (m.isMesh) clickables.push({ mesh: m, zoneId }); });
     return g;
   }
+
+  // Large Patterned Area Rug
+  const rugMat = std(0xE8DEC8, 0.95);
+  const rug = new THREE.Mesh(box(4.5, 0.02, 3.8), rugMat);
+  rug.position.set(-3.8, 0.015, 2.5); rug.receiveShadow = true;
+  scene.add(rug); clickables.push({ mesh: rug, zoneId: "seating" });
 
   // Composition centered on rug (-3.8, 2.5), rug extent x[-5.7..-1.9], z[1.0..4.0]
   // 3-seat anchor sofa along back edge, facing -z (toward room)
@@ -395,6 +401,16 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
     scene.add(stone);
   });
 
+  // Wooden Bench near basin
+  const benchMat = std(0xA87848, 0.6, 0.1);
+  const bench = new THREE.Mesh(box(1.6, 0.05, 0.4), benchMat);
+  bench.position.set(3.8, 0.45, 3.5); bench.castShadow = true;
+  scene.add(bench); clickables.push({ mesh: bench, zoneId: "biophilic" });
+  [-0.65, 0.65].forEach(lx => {
+    const leg = new THREE.Mesh(box(0.05, 0.45, 0.35), std(0x222222, 0.6, 0.5));
+    leg.position.set(3.8 + lx, 0.225, 3.5); scene.add(leg);
+  });
+
   // ── ZONE 3: Digital Wellness ─────────────────────────────────────────────────
   const screens: any[] = [];
   [[2.5, -2.0], [3.8, -3.6], [5.1, -2.0]].forEach(([x, z], i) => {
@@ -425,9 +441,34 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
   });
   animRefs.screens = screens;
 
+  // High stools for Digital Wellness
+  [[2.5, -0.8], [3.8, -2.4], [5.1, -0.8]].forEach(([x, z]) => {
+    const stoolSeat = new THREE.Mesh(cyl(0.18, 0.18, 0.08, 16), std(0x4A6A8A, 0.8));
+    stoolSeat.position.set(x, 0.75, z); stoolSeat.castShadow = true;
+    scene.add(stoolSeat); clickables.push({ mesh: stoolSeat, zoneId: "digital" });
+    const stoolLeg = new THREE.Mesh(cyl(0.02, 0.02, 0.75, 8), std(0x888888, 0.4, 0.8));
+    stoolLeg.position.set(x, 0.375, z); scene.add(stoolLeg);
+    const stoolBase = new THREE.Mesh(cyl(0.15, 0.15, 0.02, 12), std(0x888888, 0.4, 0.8));
+    stoolBase.position.set(x, 0.01, z); scene.add(stoolBase);
+  });
+
 
 
   // ── ZONE 4: Calm Engagement ──────────────────────────────────────────────────
+
+  // Cozy Armchair in Calm Zone
+  makeSeat(-6.5, -4.5, Math.PI / 4, 1, "chair", "calm");
+
+  // Large Potted Fiddle Leaf Fig
+  const figPot = new THREE.Mesh(cyl(0.3, 0.22, 0.5, 12), std(0xE0D0B8, 0.9));
+  figPot.position.set(-7.0, 0.25, -5.5); figPot.castShadow = true;
+  scene.add(figPot); clickables.push({ mesh: figPot, zoneId: "calm" });
+  const figTrunk = new THREE.Mesh(cyl(0.04, 0.05, 1.2, 6), std(0x4A2C0E, 0.9));
+  figTrunk.position.set(-7.0, 0.85, -5.5); scene.add(figTrunk);
+  const figFoliage = new THREE.Mesh(sph(0.7, 12, 10), std(0x2A5A30, 0.85));
+  figFoliage.position.set(-7.0, 1.8, -5.5); figFoliage.castShadow = true;
+  scene.add(figFoliage); clickables.push({ mesh: figFoliage, zoneId: "calm" });
+  plantAnim.push({ mesh: figFoliage, baseY: figFoliage.position.y, phase: 2.5 });
 
   // ── High-Quality Architectural Bookshelf ──
   const shGroup = new THREE.Group();
@@ -592,11 +633,7 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
 
 
 
-  // ── Decorative: rug under seating zone ───────────────────────────────────────
-  const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 3.0), std(0xA87850, 0.98));
-  rug.rotation.x = -Math.PI / 2; rug.position.set(-3.8, 0.003, 2.5); scene.add(rug);
-  const rugEdge = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 3.2), std(0x8A6038, 0.98));
-  rugEdge.rotation.x = -Math.PI / 2; rugEdge.position.set(-3.8, 0.002, 2.5); scene.add(rugEdge);
+
 
   // Biophilic zone rug (green tones)
   const rug2 = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.8), std(0x5A7848, 0.98));

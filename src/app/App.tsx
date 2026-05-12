@@ -36,7 +36,6 @@ export default function App() {
   const [tutorialStep, setTutorialStep] = useState(-1); // -1 = not active
   const [idlePrompt, setIdlePrompt] = useState(false);
   const idleTimerRef = useRef<any>(null);
-  const hoveredMeshRef = useRef<THREE.Mesh | null>(null);
 
   const handleTutorialAction = useCallback((action: string) => {
     setTutorialStep((prev) => {
@@ -407,30 +406,6 @@ export default function App() {
         const hit = getHit(e.clientX, e.clientY);
         setHovered(hit ? ZONES.find(z => z.id === hit.zoneId) : null);
         el.style.cursor = hit ? "pointer" : (r.guidedTour ? "default" : "grab");
-        // 3D hover glow: brighten hovered mesh
-        const newMesh = hit ? hit.mesh : null;
-        if (newMesh !== hoveredMeshRef.current) {
-          // Restore previous
-          if (hoveredMeshRef.current) {
-            const mat = (hoveredMeshRef.current as any).material;
-            if (mat && mat._origEmissive !== undefined) {
-              mat.emissiveIntensity = mat._origEmissive;
-              delete mat._origEmissive;
-            }
-          }
-          // Brighten new
-          if (newMesh) {
-            const mat = (newMesh as any).material;
-            if (mat && mat.emissiveIntensity !== undefined) {
-              mat._origEmissive = mat.emissiveIntensity;
-              mat.emissiveIntensity = Math.max(mat.emissiveIntensity + 0.5, 0.8);
-              if (!mat.emissive || mat.emissive.getHex() === 0) {
-                mat.emissive = new THREE.Color(0x554433);
-              }
-            }
-          }
-          hoveredMeshRef.current = newMesh;
-        }
         return;
       }
       const dx = e.clientX - lx, dy = e.clientY - ly;

@@ -594,17 +594,7 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
   lampLight2.position.set(-2.2, 1.45, -1.6); scene.add(lampLight2);
   animRefs.lampLight = lampLight2;
 
-  // Acoustic wall panels (calm zone — mounted on back and left walls)
-  // Back wall panel (shifted left to avoid bookshelf)
-  const backPanel = new THREE.Mesh(box(2.2, 2.0, 0.06), std(0xD8C8A8, 0.95));
-  backPanel.position.set(-6.7, 1.6, -6.44); scene.add(backPanel);
-  const backPanelInset = new THREE.Mesh(box(2.0, 1.8, 0.04), std(0xC8B898, 0.98));
-  backPanelInset.position.set(-6.7, 1.6, -6.42); scene.add(backPanelInset);
-  // Left wall panel
-  const leftPanel = new THREE.Mesh(box(0.06, 1.8, 2.0), std(0xD8C8A8, 0.95));
-  leftPanel.position.set(-7.95, 1.6, -3.5); scene.add(leftPanel);
-  const leftPanelInset = new THREE.Mesh(box(0.04, 1.6, 1.8), std(0xC8B898, 0.98));
-  leftPanelInset.position.set(-7.93, 1.6, -3.5); scene.add(leftPanelInset);
+
 
   // ── Decorative: rug under seating zone ───────────────────────────────────────
   const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 3.0), std(0xA87850, 0.98));

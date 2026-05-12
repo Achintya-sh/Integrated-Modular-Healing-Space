@@ -603,6 +603,10 @@ export default function App() {
   const [patientSimActive, setPatientSimActive] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [occupancy, setOccupancy] = useState<Record<string, number>>({});
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [idlePrompt, setIdlePrompt] = useState(false);
+  const idleTimerRef = useRef<any>(null);
+  const hoveredMeshRef = useRef<THREE.Mesh | null>(null);
 
   const handleZoom = useCallback((zone: any) => {
     // Toggle: if clicking the same zone, reset to overview
@@ -770,6 +774,29 @@ export default function App() {
     }
   }, [comparisonMode]);
 
+  // Idle prompt: show after 5s of no interaction, hide on any interaction
+  useEffect(() => {
+    const resetIdle = () => {
+      setIdlePrompt(false);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => setIdlePrompt(true), 5000);
+    };
+    resetIdle();
+    window.addEventListener("mousemove", resetIdle);
+    window.addEventListener("mousedown", resetIdle);
+    window.addEventListener("wheel", resetIdle);
+    window.addEventListener("touchstart", resetIdle);
+    window.addEventListener("keydown", resetIdle);
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      window.removeEventListener("mousemove", resetIdle);
+      window.removeEventListener("mousedown", resetIdle);
+      window.removeEventListener("wheel", resetIdle);
+      window.removeEventListener("touchstart", resetIdle);
+      window.removeEventListener("keydown", resetIdle);
+    };
+  }, []);
+
   // Detect mobile
   useEffect(() => {
     const checkMobile = () => {
@@ -904,6 +931,30 @@ export default function App() {
         const hit = getHit(e.clientX, e.clientY);
         setHovered(hit ? ZONES.find(z => z.id === hit.zoneId) : null);
         el.style.cursor = hit ? "pointer" : (r.firstPersonMode ? "crosshair" : "grab");
+        // 3D hover glow: brighten hovered mesh
+        const newMesh = hit ? hit.mesh : null;
+        if (newMesh !== hoveredMeshRef.current) {
+          // Restore previous
+          if (hoveredMeshRef.current) {
+            const mat = (hoveredMeshRef.current as any).material;
+            if (mat && mat._origEmissive !== undefined) {
+              mat.emissiveIntensity = mat._origEmissive;
+              delete mat._origEmissive;
+            }
+          }
+          // Brighten new
+          if (newMesh) {
+            const mat = (newMesh as any).material;
+            if (mat && mat.emissiveIntensity !== undefined) {
+              mat._origEmissive = mat.emissiveIntensity;
+              mat.emissiveIntensity = Math.max(mat.emissiveIntensity + 0.5, 0.8);
+              if (!mat.emissive || mat.emissive.getHex() === 0) {
+                mat.emissive = new THREE.Color(0x554433);
+              }
+            }
+          }
+          hoveredMeshRef.current = newMesh;
+        }
         return;
       }
       const dx = e.clientX - lx, dy = e.clientY - ly;
@@ -1363,6 +1414,24 @@ export default function App() {
         @media (max-width: 768px) {
           .panel-in { animation: fadeUp 0.35s ease forwards; }
         }
+
+        @keyframes idleBob {
+          0%, 100% { transform: translateX(-50%) translateY(0px); opacity: 0.9; }
+          50% { transform: translateX(-50%) translateY(-8px); opacity: 1; }
+        }
+        @keyframes welcomeFadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes welcomeSlideUp {
+          from { opacity: 0; transform: translate(-50%, -45%); }
+          to   { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        @keyframes fabAttention {
+          0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
+          50% { box-shadow: 0 4px 14px rgba(0,0,0,0.3), 0 0 0 6px rgba(196,144,90,0.25); }
+        }
+        .tools-fab:not(.open) { animation: fabAttention 2.5s ease-in-out 3s 3; }
       `}</style>
 
       {/* 3D Viewport */}
@@ -1627,7 +1696,7 @@ export default function App() {
           }}
           title="Compare to typical waiting room"
         >
-          {comparisonMode ? "✨ Healing" : "⊘ Typical"}
+          {comparisonMode ? "✨ Healing View" : "⊘ Standard View"}
         </button>
 
         {/* Help Button */}
@@ -1691,6 +1760,26 @@ export default function App() {
           </svg>
         </span>
       </button>
+
+      {/* Tools label hint */}
+      {!showTools && !isMobile && (
+        <div style={{
+          position: "absolute",
+          left: 80,
+          bottom: 34,
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: 10,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "rgba(248,238,216,0.45)",
+          pointerEvents: "none",
+          animation: "fadeUp 0.5s ease 2s forwards",
+          opacity: 0,
+          zIndex: 25,
+        }}>
+          Tools
+        </div>
+      )}
 
       {/* Feature Dock — left rail (desktop) / bottom strip (mobile) */}
       {showTools && <div className="dock-in" style={{
@@ -2096,6 +2185,131 @@ export default function App() {
             Typical Hospital Waiting Room · Fluorescent, desaturated, no biophilic elements
           </div>
         </div>
+      )}
+
+      {/* Idle Prompt — animated scroll icon after 5s of no interaction */}
+      {idlePrompt && loaded && !activeZone && !showWelcome && !showHelp && !firstPersonMode && (
+        <div style={{
+          position: "absolute",
+          bottom: isMobile ? 160 : 120,
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+          pointerEvents: "none",
+          animation: "idleBob 2s ease-in-out infinite",
+          zIndex: 12,
+        }}>
+          <div style={{
+            width: 28, height: 44, borderRadius: 14,
+            border: "2px solid rgba(248,238,216,0.35)",
+            display: "flex", justifyContent: "center", paddingTop: 8,
+          }}>
+            <div style={{
+              width: 4, height: 10, borderRadius: 2,
+              background: "rgba(248,238,216,0.6)",
+              animation: "fadeUp 1.2s ease-in-out infinite",
+            }} />
+          </div>
+          <span style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase",
+            color: "rgba(248,238,216,0.4)",
+          }}>
+            Scroll to explore
+          </span>
+        </div>
+      )}
+
+      {/* Welcome Modal — shown on first visit */}
+      {showWelcome && loaded && (
+        <>
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "rgba(10,6,2,0.65)",
+            backdropFilter: "blur(4px)",
+            zIndex: 50,
+            animation: "welcomeFadeIn 0.5s ease forwards",
+          }} />
+          <div style={{
+            position: "absolute",
+            top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: isMobile ? "calc(100% - 40px)" : 440,
+            maxWidth: "calc(100vw - 40px)",
+            zIndex: 51,
+            background: "rgba(20,14,8,0.97)",
+            borderRadius: 22,
+            padding: isMobile ? "32px 24px" : "40px 36px",
+            border: "1px solid rgba(196,144,90,0.35)",
+            boxShadow: "0 30px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(248,238,216,0.06)",
+            backdropFilter: "blur(20px)",
+            textAlign: "center",
+            animation: "welcomeSlideUp 0.6s cubic-bezier(.2,.8,.2,1) forwards",
+          }}>
+            <div style={{
+              fontSize: 36, marginBottom: 16,
+              filter: "drop-shadow(0 4px 12px rgba(196,144,90,0.3))",
+            }}>🌿</div>
+            <div style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: isMobile ? 22 : 26, fontWeight: 600,
+              color: "#F8EED8", lineHeight: 1.2,
+              marginBottom: 12,
+            }}>
+              Integrated Modular<br />Healing Space
+            </div>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 12, lineHeight: 1.8,
+              color: "rgba(248,238,216,0.55)",
+              marginBottom: 8,
+              maxWidth: 340, margin: "0 auto 24px",
+            }}>
+              Explore a 3D prototype of a hospital waiting environment redesigned around
+              four wellness zones — each backed by evidence-based design interventions
+              that measurably reduce patient stress and anxiety.
+            </div>
+            <div style={{
+              display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8,
+              marginBottom: 28,
+            }}>
+              {ZONES.map(z => (
+                <span key={z.id} style={{
+                  padding: "4px 12px", borderRadius: 16,
+                  background: z.accent + "18", border: `1px solid ${z.accent}44`,
+                  fontFamily: "'DM Sans'", fontSize: 10,
+                  color: z.accent, letterSpacing: "0.04em",
+                }}>
+                  {z.icon} {z.label}
+                </span>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowWelcome(false)}
+              className="zbtn"
+              style={{
+                padding: "12px 36px", borderRadius: 28,
+                border: "none",
+                background: "linear-gradient(135deg, #C4905A, #A07040)",
+                color: "#fff",
+                fontSize: 14, fontWeight: 500, letterSpacing: "0.06em",
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+                boxShadow: "0 8px 28px rgba(196,144,90,0.35)",
+              }}
+            >
+              Start Exploring →
+            </button>
+            <div style={{
+              marginTop: 16,
+              fontFamily: "'DM Sans'", fontSize: 10,
+              color: "rgba(248,238,216,0.3)",
+              letterSpacing: "0.08em",
+            }}>
+              Drag to orbit · Scroll to zoom · Click zones to explore
+            </div>
+          </div>
+        </>
       )}
 
       {/* Loading Screen */}

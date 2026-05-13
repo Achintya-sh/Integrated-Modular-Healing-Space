@@ -155,8 +155,9 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
   const skyMat = new THREE.MeshBasicMaterial({ map: skyTex });
   animRefs.skyMat = skyMat;
 
-  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(10, 6), skyMat);
-  backdrop.rotation.y = -Math.PI / 2; backdrop.position.set(10.5, 1.8, -3.25);
+  // A single continuous backdrop that covers both the main window and the clerestory
+  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(16, 6), skyMat);
+  backdrop.rotation.y = -Math.PI / 2; backdrop.position.set(10.5, 1.8, 0);
   scene.add(backdrop);
 
   // Actual glazing (very faint tinted plane — reads as clean glass)
@@ -194,9 +195,7 @@ export function buildScene(scene: THREE.Scene, animRefs: any) {
   const clerestory = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 0.35), glassMat);
   clerestory.rotation.y = -Math.PI / 2; clerestory.position.set(7.99, 2.95, 2.2);
   scene.add(clerestory);
-  const clerBackdrop = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.6), skyMat);
-  clerBackdrop.rotation.y = -Math.PI / 2; clerBackdrop.position.set(10.5, 2.95, 2.2);
-  scene.add(clerBackdrop);
+
   const clerMull = std(0xA87848, 0.55, 0.1);
   [-1.4, 0, 1.4].forEach(off => {
     const m = new THREE.Mesh(box(0.03, 0.4, 0.05), clerMull);

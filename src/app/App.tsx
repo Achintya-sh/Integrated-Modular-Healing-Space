@@ -322,7 +322,7 @@ export default function App() {
     // Scene
     r.scene = new THREE.Scene();
     r.scene.background = new THREE.Color(0xEDE0C8);
-    r.scene.fog = new THREE.Fog(0xEDE0C8, 18, 30);
+    r.scene.fog = new THREE.Fog(0xEDE0C8, 30, 65);
 
     // Camera
     r.camera = new THREE.PerspectiveCamera(54, el.clientWidth / el.clientHeight, 0.1, 80);
